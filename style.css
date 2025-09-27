@@ -1,0 +1,41 @@
+body { font-family: 'Inter', sans-serif; }
+.hidden { display: none; }
+.fade-in { animation: fadeIn 0.5s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+[contenteditable="true"]:focus { outline-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+table input, table select { border: none; background-color: transparent; width: 100%; height: 100%; text-align: center; padding: 12px 8px; outline: none; }
+table input:focus { background-color: #eff6ff; }
+.tab-button.active, .semester-button.active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
+.delete-btn { background: #fee2e2; color: #ef4444; border-radius: 9999px; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 12px; font-weight: bold; cursor: pointer; border: none; line-height: 1; transition: all 0.2s ease; flex-shrink: 0; }
+.delete-btn:hover { background: #ef4444; color: white; transform: scale(1.1); }
+.export-student-pdf-btn { background: #e0e7ff; color: #4f46e5; border-radius: 9999px; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; cursor: pointer; border: none; }
+.export-student-pdf-btn:hover { background: #4f46e5; color: white; transform: scale(1.1); }
+.drag-handle { cursor: grab; padding: 0 8px; color: #9ca3af; }
+.dragging { opacity: 0.5; background: #e0e7ff; }
+#table-wrapper { overflow: auto; max-height: calc(100vh - 350px); /* Adjust based on header/footer heights */ }
+#gradebookTable thead tr th { position: sticky; top: 0; z-index: 30; }
+#gradebookTable thead tr:first-child th { top: 0; background-color: #f9fafb; }
+#gradebookTable thead tr:nth-child(2) th { top: var(--header-row-1-height, 50px); background-color: #f3f4f6; }
+#gradebookTable thead tr:nth-child(3) th { top: var(--header-row-2-height, 100px); background-color: #e5e7eb; }
+
+#gradebookTable tbody td:first-child, #gradebookTable tfoot td:first-child, #gradebookTable thead tr th:first-child { position: sticky; left: 0; z-index: 25; }
+#gradebookTable thead tr th:first-child { z-index: 35; }
+#gradebookTable tbody tr td:first-child { background-color: inherit; }
+#gradebookTable tfoot td:first-child { background-color: #f9fafb; }
+
+/* Sticky columns for student stats */
+#gradebookTable th:nth-child(1), #gradebookTable td:nth-child(1) { width: 15rem; min-width: 15rem; left: 0; }
+#gradebookTable th:nth-child(2), #gradebookTable td:nth-child(2) { width: 4rem; min-width: 4rem; left: 15rem; position: sticky; z-index: 25; } /* IEP */
+#gradebookTable th:nth-child(3), #gradebookTable td:nth-child(3) { width: 6rem; min-width: 6rem; left: 19rem; position: sticky; z-index: 25; } /* Overall */
+#gradebookTable th:nth-child(4), #gradebookTable td:nth-child(4) { width: 6rem; min-width: 6rem; left: 25rem; position: sticky; z-index: 25; } /* Midterm */
+#gradebookTable th:nth-child(5), #gradebookTable td:nth-child(5) { width: 3.5rem; min-width: 3.5rem; left: 31rem; position: sticky; z-index: 25; } /* K% */
+#gradebookTable th:nth-child(6), #gradebookTable td:nth-child(6) { width: 3.5rem; min-width: 3.5rem; left: 34.5rem; position: sticky; z-index: 25; } /* T% */
+#gradebookTable th:nth-child(7), #gradebookTable td:nth-child(7) { width: 3.5rem; min-width: 3.5rem; left: 38rem; position: sticky; z-index: 25; } /* C% */
+#gradebookTable th:nth-child(8), #gradebookTable td:nth-child(8) { width: 3.5rem; min-width: 3.5rem; left: 41.5rem; position: sticky; z-index: 25; } /* A% */
+
+#gradebookTable thead tr th:nth-child(n+2):nth-child(-n+8) { z-index: 35; }
+#gradebookTable tbody tr td:nth-child(n+2):nth-child(-n+8) { background-color: inherit; }
+#gradebookTable tfoot td:nth-child(n+2):nth-child(-n+8) { background-color: #f9fafb; }
+
+#gradebookTable tbody .student-row:nth-child(even) { background-color: #f9fafb; }
+.student-row:hover, .student-row:hover > td { background-color: #eef2ff; }
