@@ -5,44 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Marksheet Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
         .hidden { display: none; }
-        [contenteditable="true"] { outline: 2px solid transparent; transition: outline-color 0.3s; }
-        [contenteditable="true"]:focus { outline-color: #3b82f6; /* blue-500 */ }
-        table input, table select { border: none; background-color: transparent; width: 100%; height: 100%; text-align: center; padding: 8px; outline: none; }
-        input[type="number"] { -moz-appearance: textfield; }
-        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .table-cell { padding: 0; vertical-align: middle; text-align: center; border-left: 1px solid #e5e7eb; }
-        .header-cell { padding: 8px; font-weight: 600; white-space: nowrap; vertical-align: top; }
-        .student-name-cell { padding: 8px; text-align: left; display: flex; align-items: center; gap: 8px; }
-        .assignment-header { min-width: 220px; position: relative; padding: 4px; text-align: center; }
-        .tab-button.active, .semester-button.active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
         .fade-in { animation: fadeIn 0.5s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        [contenteditable="true"]:focus { outline-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+        table input, table select { border: none; background-color: transparent; width: 100%; height: 100%; text-align: center; padding: 12px 8px; outline: none; }
+        table input:focus { background-color: #eff6ff; }
+        .tab-button.active, .semester-button.active { border-bottom-color: #3b82f6; color: #3b82f6; font-weight: 600; }
         .delete-btn { background: #fee2e2; color: #ef4444; border-radius: 9999px; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; font-size: 12px; font-weight: bold; cursor: pointer; border: none; line-height: 1; transition: all 0.2s ease; flex-shrink: 0; }
         .delete-btn:hover { background: #ef4444; color: white; transform: scale(1.1); }
-        .sticky-header { position: sticky; top: 0; z-index: 20; }
-        .sticky-col { position: sticky; left: 0; z-index: 10; }
-        .sticky-col-header { position: sticky; left: 0; z-index: 30; }
-        input:disabled { background-color: #f3f4f6; cursor: not-allowed; }
+        .export-student-pdf-btn { background: #e0e7ff; color: #4f46e5; border-radius: 9999px; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; cursor: pointer; border: none; }
+        .export-student-pdf-btn:hover { background: #4f46e5; color: white; transform: scale(1.1); }
+        .drag-handle { cursor: grab; padding: 0 8px; color: #9ca3af; }
+        .dragging { opacity: 0.5; background: #e0e7ff; }
+        #table-wrapper { overflow: auto; max-height: calc(100vh - 350px); /* Adjust based on header/footer heights */ }
+        #gradebookTable thead tr th { position: sticky; top: 0; z-index: 30; }
+        #gradebookTable thead tr:first-child th { top: 0; background-color: #f9fafb; }
+        #gradebookTable thead tr:nth-child(2) th { top: var(--header-row-1-height, 50px); background-color: #f3f4f6; }
+        #gradebookTable thead tr:nth-child(3) th { top: var(--header-row-2-height, 100px); background-color: #e5e7eb; }
+
+        #gradebookTable tbody td:first-child, #gradebookTable tfoot td:first-child, #gradebookTable thead tr th:first-child { position: sticky; left: 0; z-index: 25; }
+        #gradebookTable thead tr th:first-child { z-index: 35; }
+        #gradebookTable tbody tr td:first-child { background-color: inherit; }
+        #gradebookTable tfoot td:first-child { background-color: #f9fafb; }
+
+        /* Sticky columns for student stats */
+        #gradebookTable th:nth-child(1), #gradebookTable td:nth-child(1) { width: 15rem; min-width: 15rem; left: 0; }
+        #gradebookTable th:nth-child(2), #gradebookTable td:nth-child(2) { width: 4rem; min-width: 4rem; left: 15rem; position: sticky; z-index: 25; } /* IEP */
+        #gradebookTable th:nth-child(3), #gradebookTable td:nth-child(3) { width: 6rem; min-width: 6rem; left: 19rem; position: sticky; z-index: 25; } /* Overall */
+        #gradebookTable th:nth-child(4), #gradebookTable td:nth-child(4) { width: 6rem; min-width: 6rem; left: 25rem; position: sticky; z-index: 25; } /* Midterm */
+        #gradebookTable th:nth-child(5), #gradebookTable td:nth-child(5) { width: 3.5rem; min-width: 3.5rem; left: 31rem; position: sticky; z-index: 25; } /* K% */
+        #gradebookTable th:nth-child(6), #gradebookTable td:nth-child(6) { width: 3.5rem; min-width: 3.5rem; left: 34.5rem; position: sticky; z-index: 25; } /* T% */
+        #gradebookTable th:nth-child(7), #gradebookTable td:nth-child(7) { width: 3.5rem; min-width: 3.5rem; left: 38rem; position: sticky; z-index: 25; } /* C% */
+        #gradebookTable th:nth-child(8), #gradebookTable td:nth-child(8) { width: 3.5rem; min-width: 3.5rem; left: 41.5rem; position: sticky; z-index: 25; } /* A% */
+        
+        #gradebookTable thead tr th:nth-child(n+2):nth-child(-n+8) { z-index: 35; }
+        #gradebookTable tbody tr td:nth-child(n+2):nth-child(-n+8) { background-color: inherit; }
+        #gradebookTable tfoot td:nth-child(n+2):nth-child(-n+8) { background-color: #f9fafb; }
+
+        #gradebookTable tbody .student-row:nth-child(even) { background-color: #f9fafb; }
+        .student-row:hover, .student-row:hover > td { background-color: #eef2ff; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- Loading Spinner -->
-    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+    <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50 hidden">
         <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
     </div>
-
-    <!-- Login/Signup Screen -->
     <div id="auth-container" class="hidden min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-         <div class="max-w-md w-full space-y-8">
+        <div class="max-w-md w-full space-y-8">
             <div>
-                <svg class="mx-auto h-12 w-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3a2 2 0 00-2-2H9a2 2 0 00-2 2v3m12-3V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2z" /></svg>
+                <svg class="mx-auto h-12 w-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                 <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">Marksheet Pro</h2>
                 <p id="auth-title" class="mt-2 text-center text-sm text-gray-600">Sign in to your account</p>
             </div>
@@ -52,226 +71,1416 @@
                     <input id="email-address" name="email" type="email" autocomplete="email" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Email address">
                     <input id="password" name="password" type="password" autocomplete="current-password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="Password">
                 </div>
-                <div>
-                    <button id="auth-submit-btn" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Sign in</button>
-                </div>
-                <p class="mt-2 text-center text-sm text-gray-600">
-                    <a href="#" id="auth-toggle-link" class="font-medium text-blue-600 hover:text-blue-500">Or create a new account</a>
-                </p>
+                <div><button id="auth-submit-btn" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">Sign in</button></div>
+                <p class="mt-2 text-center text-sm text-gray-600"><a href="#" id="auth-toggle-link" class="font-medium text-blue-600 hover:text-blue-500">Or create a new account</a></p>
             </div>
         </div>
     </div>
-
-    <!-- Main App Container -->
     <div id="app-container" class="hidden container mx-auto p-4 sm:p-6 lg:p-8">
         <header class="bg-white shadow-md rounded-lg p-6 mb-6 flex justify-between items-center">
             <div>
                 <h1 class="text-3xl font-bold text-gray-800">Marksheet Pro</h1>
                 <p id="user-email-display" class="text-gray-600 mt-1"></p>
             </div>
-            <button id="sign-out-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm">Sign Out</button>
+            <div>
+                <button id="account-management-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg shadow-sm mr-4">My Account</button>
+                <button id="sign-out-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-sm">Sign Out</button>
+            </div>
         </header>
-        <div id="gradebook-content-wrapper"></div>
+        <div id="content-wrapper"></div>
     </div>
-    
-    <!-- All Modals will be injected by JS into the body -->
+    <div id="modal-container"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        const { createClient } = supabase;
 
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // IMPORTANT: Replace these with your own Supabase project's URL and Anon Key
+        const SUPABASE_URL = 'https://pvwcdesafxxkosdrfjwa.supabase.co'; // Find this in your Supabase project settings > API
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2d2NkZXNhZnh4a29zZHJmandhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTg0NzY3NDIsImV4cCI6MjA3NDA1Mjc0Mn0.qaSGzdLMCbYNO1KQPCZJrCrk0AEtesKvt2kHXJ_IVH8'; // Find this in your Supabase project settings > API
 
-        // --- GLOBAL STATE ---
-        let appState = {}; 
-        let currentUserId = null;
-        let unsubscribeFromDb = null; // To detach the real-time listener
-
-        let uiState = {
-            hasUnsavedChanges: false,
-            confirmCallback: null,
-            cancelCallback: null
-        };
-        
-        // --- UI ELEMENTS ---
-        const loadingOverlay = document.getElementById('loading-overlay');
+        let supabaseClient;
         const authContainer = document.getElementById('auth-container');
+        
+        // Check if placeholders have been replaced before initializing client
+        if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || SUPABASE_ANON_KEY === 'YOUR_SUPABASE_ANON_KEY') {
+            document.getElementById('app-container').classList.remove('hidden');
+            const contentWrapper = document.getElementById('content-wrapper');
+            if(contentWrapper) {
+                 contentWrapper.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-8" role="alert"><p class="font-bold">Configuration Error</p><p>Please update the <strong>SUPABASE_URL</strong> and <strong>SUPABASE_ANON_KEY</strong> in the script tag with your own Supabase project credentials to use this application.</p></div>`;
+            }
+            if(authContainer) authContainer.classList.add('hidden');
+        } else {
+            supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        let appState = {}; 
+        let currentUser = null;
+        let inactivityTimer;
+       
+        const loadingOverlay = document.getElementById('loading-overlay');
         const appContainer = document.getElementById('app-container');
-        const authTitle = document.getElementById('auth-title');
-        const authSubmitBtn = document.getElementById('auth-submit-btn');
-        const authToggleLink = document.getElementById('auth-toggle-link');
-        const emailInput = document.getElementById('email-address');
-        const passwordInput = document.getElementById('password');
-        const authError = document.getElementById('auth-error');
         const userEmailDisplay = document.getElementById('user-email-display');
+        const contentWrapper = document.getElementById('content-wrapper');
+        const authSubmitBtn = document.getElementById('auth-submit-btn');
         const signOutBtn = document.getElementById('sign-out-btn');
-        const gradebookWrapper = document.getElementById('gradebook-content-wrapper');
+        const accountManagementBtn = document.getElementById('account-management-btn');
+        const authToggleLink = document.getElementById('auth-toggle-link');
 
-        let isLoginMode = true;
-
-        // --- AUTHENTICATION LOGIC ---
-        // Functions like toggleAuthMode, handleAuthSubmit, handleSignOut, performSignOut are unchanged
-        function toggleAuthMode() {
-            isLoginMode = !isLoginMode;
-            authTitle.textContent = isLoginMode ? 'Sign in to your account' : 'Create a new account';
-            authSubmitBtn.textContent = isLoginMode ? 'Sign in' : 'Create account';
-            authToggleLink.innerHTML = isLoginMode ? 'Or create a new account' : 'Already have an account? Sign in';
-            authError.classList.add('hidden');
+        // --- HELPER FUNCTIONS ---
+        function getActiveSemesterData() {
+            const activeSemester = appState.gradebook_data?.activeSemester || '1';
+            return appState.gradebook_data?.semesters?.[activeSemester] || { classes: {} };
         }
-        async function handleAuthSubmit(e) {
-            e.preventDefault();
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            authError.classList.add('hidden');
-            loadingOverlay.classList.remove('hidden');
 
-            try {
-                if (isLoginMode) {
-                    await signInWithEmailAndPassword(auth, email, password);
-                } else {
-                    await createUserWithEmailAndPassword(auth, email, password);
+        function getActiveClassData() {
+            const semesterData = getActiveSemesterData();
+            const activeClassId = appState.gradebook_data?.activeClassId;
+            return activeClassId ? semesterData.classes?.[activeClassId] : null;
+        }
+
+        function adjustStickyHeaders() {
+            const firstHeaderRow = document.querySelector('#gradebookTable thead tr:first-child');
+            const secondHeaderRow = document.querySelector('#gradebookTable thead tr:nth-child(2)');
+            if (firstHeaderRow) {
+                const height1 = firstHeaderRow.offsetHeight;
+                document.documentElement.style.setProperty('--header-row-1-height', `${height1}px`);
+                if(secondHeaderRow){
+                    const height2 = secondHeaderRow.offsetHeight;
+                    document.documentElement.style.setProperty('--header-row-2-height', `${height1 + height2}px`);
                 }
-            } catch (error) {
-                authError.textContent = error.message;
-                authError.classList.remove('hidden');
-                loadingOverlay.classList.add('hidden');
             }
-        }
-        async function handleSignOut() {
-            if (uiState.hasUnsavedChanges) {
-                showConfirmModal("Unsaved Changes", "You have unsaved changes. Are you sure you want to sign out without saving?", async () => {
-                    await performSignOut();
-                });
-            } else {
-                await performSignOut();
-            }
-        }
-        async function performSignOut() {
-            if (unsubscribeFromDb) unsubscribeFromDb();
-            await signOut(auth);
-            gradebookWrapper.innerHTML = '';
         }
 
-        // --- DATA MANAGEMENT ---
-        function getInitialData() {
-            const defaultClassId = `class_${Date.now()}`;
-            return {
-                semesters: {
-                    '1': { 
-                        classes: {
-                            [defaultClassId]: {
-                                name: "My First Class", sortPreference: "default", midtermRecorded: false,
-                                categoryWeights: { K: "25", T: "25", C: "25", A: "25" },
-                                unitDetails: { '1': { title: "Unit 1", subtitle: "" }, '2': { title: "Unit 2", subtitle: "" } },
-                                assignments: [], students: []
+        function showModal({ title, content, confirmText = 'Confirm', cancelText = 'Cancel', confirmClasses = 'bg-red-600 hover:bg-red-700', onConfirm, onCancel, onAction }) {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div id="custom-modal-backdrop" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-40"></div>
+                <div id="custom-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl z-50 w-full max-w-lg mx-auto p-6 fade-in">
+                    <h3 class="text-xl font-semibold mb-4">${title}</h3>
+                    <div>${content}</div>
+                    <div class="mt-6 flex justify-end gap-4">
+                        <button id="modal-cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">${cancelText}</button>
+                        <button id="modal-confirm-btn" class="px-4 py-2 text-white rounded-lg ${confirmClasses}">${confirmText}</button>
+                    </div>
+                </div>
+            `;
+            const closeModal = () => { modalContainer.innerHTML = ''; };
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+            const backdrop = document.getElementById('custom-modal-backdrop');
+
+            if (onAction) {
+                confirmBtn.addEventListener('click', () => { onAction(closeModal); });
+            } else {
+                 confirmBtn.addEventListener('click', () => { if (onConfirm) onConfirm(); closeModal(); });
+            }
+            cancelBtn.addEventListener('click', () => { if (onCancel) onCancel(); closeModal(); });
+            backdrop.addEventListener('click', () => { if (onCancel) onCancel(); closeModal(); });
+        }
+        
+        // --- GRADE CALCULATION LOGIC ---
+        function calculateStudentAverages(student, classData) {
+            if (!student || !classData || !classData.units || !classData.categoryWeights) return { overall: null, categories: {} };
+
+            const units = classData.units;
+            const categoryWeights = classData.categoryWeights;
+
+            let studentTotals = { k: 0, t: 0, c: 0, a: 0 };
+            let classTotals = { k: 0, t: 0, c: 0, a: 0 };
+
+            for (const unit of Object.values(units)) {
+                for (const asg of Object.values(unit.assignments || {})) {
+                    for (const cat of ['k', 't', 'c', 'a']) {
+                        const asgTotalCat = asg.categoryTotals?.[cat] || 0;
+                        if (asgTotalCat > 0) {
+                            classTotals[cat] += asgTotalCat;
+                            const studentGradeCat = student.grades?.[asg.id]?.[cat];
+                            if (studentGradeCat !== null && studentGradeCat !== undefined && !isNaN(studentGradeCat)) {
+                                studentTotals[cat] += studentGradeCat;
                             }
                         }
-                    },
-                    '2': { classes: {} }
-                },
-                activeSemester: '1', activeClassId: defaultClassId
-            };
-        }
-        function setupRealtimeListener(userId) {
-            const userDocRef = doc(db, "users", userId);
-            unsubscribeFromDb = onSnapshot(userDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    appState = docSnap.data().gradebookData;
-                } else {
-                    appState = getInitialData();
-                    saveDataForUser(userId, true);
+                    }
                 }
-                renderFullGradebookUI();
-                const firstClassId = Object.keys(appState.semesters[appState.activeSemester].classes)[0];
-                const initialTab = appState.activeClassId || firstClassId || 'instructions';
-                performTabSwitch(initialTab);
+            }
+
+            let studentPercentages = {};
+            for (const cat of ['k', 't', 'c', 'a']) {
+                studentPercentages[cat] = classTotals[cat] > 0 ? (studentTotals[cat] / classTotals[cat]) * 100 : null;
+            }
+
+            let overallGrade = 0;
+            let totalWeight = 0;
+            for (const cat of ['k', 't', 'c', 'a']) {
+                if (studentPercentages[cat] !== null) {
+                    const weight = categoryWeights[cat] || 0;
+                    overallGrade += studentPercentages[cat] * weight;
+                    totalWeight += weight;
+                }
+            }
+
+            const finalOverall = totalWeight > 0 ? overallGrade / totalWeight : null;
+            return { overall: finalOverall, categories: studentPercentages };
+        }
+        
+        function calculateClassAverages(classData) {
+            const students = Object.values(classData.students || {});
+            const classAverages = { overall: null, categories: { k: null, t: null, c: null, a: null }, assignments: {} };
+            if (students.length === 0) return classAverages;
+
+            let overallSum = 0, overallCount = 0;
+            let catSums = { k: 0, t: 0, c: 0, a: 0 };
+            let catCounts = { k: 0, t: 0, c: 0, a: 0 };
+            
+            for(const student of students) {
+                const studentAvgs = calculateStudentAverages(student, classData);
+                if (studentAvgs.overall !== null) {
+                    overallSum += studentAvgs.overall;
+                    overallCount++;
+                }
+                for (const cat of ['k', 't', 'c', 'a']) {
+                    if (studentAvgs.categories[cat] !== null) {
+                        catSums[cat] += studentAvgs.categories[cat];
+                        catCounts[cat]++;
+                    }
+                }
+            }
+
+            if(overallCount > 0) classAverages.overall = overallSum / overallCount;
+            for (const cat of ['k', 't', 'c', 'a']) {
+                if(catCounts[cat] > 0) classAverages.categories[cat] = catSums[cat] / catCounts[cat];
+            }
+
+            return classAverages;
+        }
+
+        function recalculateAndRenderAverages() {
+            const classData = getActiveClassData();
+            if (!classData) return;
+            
+            Object.values(classData.students || {}).forEach(student => {
+                const studentAvgs = calculateStudentAverages(student, classData);
+                const studentRow = document.querySelector(`.student-row[data-student-id="${student.id}"]`);
+                if (studentRow) {
+                    const overallFormatted = studentAvgs.overall !== null ? `${studentAvgs.overall.toFixed(1)}%` : '--';
+                    studentRow.querySelector('.student-overall').textContent = overallFormatted;
+                    for (const cat of ['k', 't', 'c', 'a']) {
+                        const catFormatted = studentAvgs.categories[cat] !== null ? `${studentAvgs.categories[cat].toFixed(1)}%` : '--';
+                        studentRow.querySelector(`.student-cat-${cat}`).textContent = catFormatted;
+                    }
+                }
+            });
+
+            const classAverages = calculateClassAverages(classData);
+            const tfoot = document.querySelector('#gradebookTable tfoot');
+            if(tfoot) {
+                const overallFormatted = classAverages.overall !== null ? `${classAverages.overall.toFixed(1)}%` : '--';
+                tfoot.querySelector('.class-overall').textContent = overallFormatted;
+                for (const cat of ['k', 't', 'c', 'a']) {
+                        const catFormatted = classAverages.categories[cat] !== null ? `${classAverages.categories[cat].toFixed(1)}%` : '--';
+                        tfoot.querySelector(`.class-cat-${cat}`).textContent = catFormatted;
+                    }
+            }
+        }
+        
+        // --- UI RENDERING FUNCTIONS ---
+        function renderClassTabs() {
+            const classTabsContainer = document.getElementById('class-tabs-container');
+            const semesterData = getActiveSemesterData();
+            const classes = semesterData.classes || {};
+            const activeClassId = appState.gradebook_data.activeClassId;
+            classTabsContainer.innerHTML = ''; 
+            Object.keys(classes).sort((a,b) => classes[a].name.localeCompare(classes[b].name)).forEach(classId => {
+                const classData = classes[classId];
+                const tabButton = document.createElement('button');
+                tabButton.className = 'tab-button shrink-0 py-4 px-1 border-b-2 font-medium text-sm';
+                tabButton.textContent = classData.name;
+                tabButton.dataset.tabId = classId;
+                if (classId === activeClassId) {
+                    tabButton.classList.add('active');
+                }
+                classTabsContainer.appendChild(tabButton);
             });
         }
-        async function saveDataForUser(userId, isInitialSave = false) {
-             if (!userId) return;
-             try {
-                const userDocRef = doc(db, "users", userId);
-                await setDoc(userDocRef, { gradebookData: appState });
-                uiState.hasUnsavedChanges = false;
-                if (!isInitialSave) updateSaveStatus();
-             } catch (e) { console.error("Error saving data: ", e); }
-        }
 
-        // --- Marksheet Pro Full UI & Logic Integration ---
-        const CATEGORIES = ['K', 'T', 'C', 'A'];
+        function renderCategoryWeights() {
+            const classData = getActiveClassData();
+            if (!classData) return;
+
+            if (!classData.categoryWeights) classData.categoryWeights = {};
+            const defaults = { k: 25, t: 25, c: 25, a: 25 };
+            let needsStateUpdate = false;
+            for (const cat in defaults) {
+                if (classData.categoryWeights[cat] === undefined || classData.categoryWeights[cat] === null) {
+                    classData.categoryWeights[cat] = defaults[cat];
+                    needsStateUpdate = true;
+                }
+            }
+            if (needsStateUpdate) enableSaveChangesButton();
+
+            const container = document.getElementById('category-weights-container');
+            const weights = classData.categoryWeights;
+
+            container.innerHTML = `
+                <h3 class="text-lg font-semibold text-gray-700 mb-3">Category Weights</h3>
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
+                    <div><label class="block text-sm font-medium text-gray-500">Knowledge %</label><input type="number" data-cat="k" class="cat-weight-input mt-1 p-2 border rounded-md w-full" value="${weights.k}"></div>
+                    <div><label class="block text-sm font-medium text-gray-500">Thinking/Inquiry %</label><input type="number" data-cat="t" class="cat-weight-input mt-1 p-2 border rounded-md w-full" value="${weights.t}"></div>
+                    <div><label class="block text-sm font-medium text-gray-500">Communication %</label><input type="number" data-cat="c" class="cat-weight-input mt-1 p-2 border rounded-md w-full" value="${weights.c}"></div>
+                    <div><label class="block text-sm font-medium text-gray-500">Application %</label><input type="number" data-cat="a" class="cat-weight-input mt-1 p-2 border rounded-md w-full" value="${weights.a}"></div>
+                    <div class="mt-5 text-center p-2 rounded-lg" id="cat-weight-total-container"><span class="text-xl font-bold" id="cat-weight-total">Total: 100%</span></div>
+                </div>
+            `;
+            
+            const updateTotal = () => {
+                let total = 0;
+                container.querySelectorAll('.cat-weight-input').forEach(input => {
+                    total += parseFloat(input.value) || 0;
+                });
+                const totalEl = document.getElementById('cat-weight-total');
+                const totalContainer = document.getElementById('cat-weight-total-container');
+                totalEl.textContent = `Total: ${total}%`;
+                if(Math.round(total) === 100) {
+                    totalContainer.classList.remove('bg-red-100');
+                    totalContainer.classList.add('bg-green-100');
+                    totalEl.classList.remove('text-red-700');
+                    totalEl.classList.add('text-green-700');
+                } else {
+                    totalContainer.classList.remove('bg-green-100');
+                    totalContainer.classList.add('bg-red-100');
+                    totalEl.classList.remove('text-green-700');
+                    totalEl.classList.add('text-red-700');
+                }
+            };
+
+            container.addEventListener('input', (e) => {
+                if (e.target.classList.contains('cat-weight-input')) {
+                    const cat = e.target.dataset.cat;
+                    const value = parseFloat(e.target.value) || 0;
+                    if(classData.categoryWeights) {
+                        classData.categoryWeights[cat] = value;
+                        enableSaveChangesButton();
+                        recalculateAndRenderAverages();
+                    }
+                    updateTotal();
+                }
+            });
+            updateTotal();
+        }
         
-        // All helper functions (markUnsavedChanges, updateSaveStatus, calculateGradeData, updateCalculatedUI, etc.)
-        // are included here but redacted for brevity as they are unchanged from the previous version.
-        // Their logic for manipulating the appState and UI remains the same.
-        function markUnsavedChanges() { /* ... */ }
-        function updateSaveStatus() { /* ... */ }
-        function calculateGradeData(classData) { /* ... */ return {}; }
-        function updateCalculatedUI() { /* ... */ }
+        function renderGradebook() {
+            const classData = getActiveClassData();
+            const table = document.getElementById('gradebookTable');
+            if (!classData || !table) return;
 
-        function renderFullGradebookUI() {
-            // This function injects the full HTML for the gradebook and modals
-            // The HTML content is the same as the final version of the local file, but adapted to be a string here.
-            // Redacted for brevity.
-            gradebookWrapper.innerHTML = `<!-- Full gradebook UI -->`; 
-            // After injecting, attach listeners
-            attachAllEventListeners();
+            document.getElementById('className').textContent = classData.name;
+            const students = classData.students || {};
+            const units = classData.units || {};
+            const studentIds = Object.keys(students);
+
+            // RENDER THEAD
+            const thead = table.querySelector('thead');
+            let headerHtml1 = `<tr class="bg-gray-50"><th class="p-3 text-sm font-semibold tracking-wide text-left">Student Name</th><th class="p-3 text-sm font-semibold tracking-wide text-center">IEP</th><th class="p-3 text-sm font-semibold tracking-wide text-center">Overall</th><th class="p-3 text-sm font-semibold tracking-wide text-center">Midterm</th><th class="p-3 text-sm font-semibold tracking-wide text-center">K%</th><th class="p-3 text-sm font-semibold tracking-wide text-center">T%</th><th class="p-3 text-sm font-semibold tracking-wide text-center">C%</th><th class="p-3 text-sm font-semibold tracking-wide text-center">A%</th>`;
+            let headerHtml2 = `<tr><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>`
+            let headerHtml3 = `<tr><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th>`
+
+            Object.values(units).forEach(unit => {
+                const assignments = Object.values(unit.assignments || {});
+                const assignmentCount = assignments.length > 0 ? assignments.length : 1;
+                headerHtml1 += `<th colspan="${assignmentCount * 4}" class="p-3 text-sm font-semibold tracking-wide text-center border-l">${unit.name} (${unit.weight}%)</th>`;
+                if(assignments.length === 0){
+                    headerHtml2 += `<td colspan="4" class="p-3 text-center text-xs text-gray-400 border-l italic">No assignments</td>`
+                    for(let i=0; i<4; i++) headerHtml3 += `<td></td>`;
+                } else {
+                    assignments.forEach(asg => {
+                        headerHtml2 += `<th colspan="4" class="p-3 text-xs font-medium text-gray-500 tracking-wider text-center border-l">${asg.name}</th>`;
+                        ['k','t','c','a'].forEach(cat => {
+                            const total = asg.categoryTotals?.[cat] || 0;
+                            headerHtml3 += `<th class="p-2 text-xs font-medium text-gray-500 uppercase tracking-wider text-center border-l">${cat}<br><span class="font-normal normal-case">/${total}</span></th>`;
+                        });
+                    });
+                }
+            });
+            headerHtml1 += `</tr>`;
+            headerHtml2 += `</tr>`;
+            headerHtml3 += `</tr>`;
+            thead.innerHTML = headerHtml1 + headerHtml2 + headerHtml3;
+
+            // RENDER TBODY
+            const tbody = table.querySelector('tbody');
+            let bodyHtml = '';
+            studentIds.sort((a,b) => students[a].name.localeCompare(students[b].name)).forEach(studentId => {
+                const student = students[studentId];
+                const iepChecked = student.iep ? 'checked' : '';
+                const midtermMark = (student.midtermGrade !== null && student.midtermGrade !== undefined) ? student.midtermGrade.toFixed(1) : '';
+                bodyHtml += `<tr class="student-row" data-student-id="${studentId}">
+                    <td class="p-0"><div class="flex items-center h-full"><button class="delete-btn ml-2 mr-2" data-student-id="${studentId}">&times;</button><input class="student-name-input w-full h-full p-3 bg-transparent" data-student-id="${studentId}" value="${student.name}"></div></td>
+                    <td class="p-3 text-center"><input type="checkbox" class="iep-checkbox h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" data-student-id="${studentId}" ${iepChecked}></td>
+                    <td class="p-3 text-center font-semibold student-overall">--%</td>
+                    <td class="p-0"><input type="number" class="midterm-grade-input w-full h-full bg-transparent text-center" data-student-id="${studentId}" value="${midtermMark}" placeholder="--"></td>
+                    <td class="p-3 text-center font-semibold student-cat-k">--%</td>
+                    <td class="p-3 text-center font-semibold student-cat-t">--%</td>
+                    <td class="p-3 text-center font-semibold student-cat-c">--%</td>
+                    <td class="p-3 text-center font-semibold student-cat-a">--%</td>
+                `;
+                Object.values(units).forEach(unit => {
+                    const assignments = Object.values(unit.assignments || {});
+                    if(assignments.length === 0) {
+                        bodyHtml += `<td colspan="4" class="p-3 border-l"></td>`;
+                    } else {
+                        assignments.forEach(asg => {
+                            ['k','t','c','a'].forEach(cat => {
+                                const grade = student.grades?.[asg.id]?.[cat];
+                                const score = (grade !== null && grade !== undefined) ? grade : '';
+                                bodyHtml += `<td class="p-0 border-l"><input type="number" class="grade-input" min="0" max="${asg.categoryTotals?.[cat] || 0}" data-student-id="${studentId}" data-assignment-id="${asg.id}" data-cat="${cat}" value="${score}"></td>`;
+                            });
+                        });
+                    }
+                });
+                bodyHtml += `</tr>`;
+            });
+            tbody.innerHTML = bodyHtml;
+            
+            // RENDER TFOOT
+            const tfoot = table.querySelector('tfoot');
+            let footerHtml = `<tr class="bg-gray-50 font-semibold">
+                <td class="p-3">Class Average</td>
+                <td class="p-3"></td> <!-- IEP column -->
+                <td class="p-3 text-center class-overall">--%</td>
+                <td class="p-3"></td> <!-- Midterm column -->
+                <td class="p-3 text-center class-cat-k">--%</td>
+                <td class="p-3 text-center class-cat-t">--%</td>
+                <td class="p-3 text-center class-cat-c">--%</td>
+                <td class="p-3 text-center class-cat-a">--%</td>
+            `;
+            // Placeholder for assignment averages
+             Object.values(units).forEach(unit => {
+                const assignments = Object.values(unit.assignments || {});
+                if(assignments.length === 0) footerHtml += `<td colspan="4" class="p-3 border-l"></td>`;
+                else assignments.forEach(asg => { footerHtml += `<td colspan="4" class="p-3 border-l"></td>`; });
+            });
+            footerHtml += `</tr>`;
+            tfoot.innerHTML = footerHtml;
+            
+            const recordMidtermsBtn = document.getElementById('recordMidtermsBtn');
+            if (recordMidtermsBtn) {
+                if (classData.midtermsRecorded) {
+                    recordMidtermsBtn.disabled = true;
+                    recordMidtermsBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                    recordMidtermsBtn.classList.remove('bg-purple-500', 'hover:bg-purple-600');
+                    recordMidtermsBtn.title = 'Midterm marks have already been recorded for this class.';
+                } else {
+                    recordMidtermsBtn.disabled = false;
+                    recordMidtermsBtn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                    recordMidtermsBtn.classList.add('bg-purple-500', 'hover:bg-purple-600');
+                    recordMidtermsBtn.title = '';
+                }
+            }
+
+            adjustStickyHeaders();
+            recalculateAndRenderAverages();
         }
 
-        function loadClassData(classId) {
-            // This function populates the table based on the active classId from appState.
-            // Redacted for brevity.
+        function updateUIFromState() {
+            if(!supabaseClient) return;
+            const activeSemester = appState.gradebook_data.activeSemester || '1';
+            const activeClassId = appState.gradebook_data.activeClassId;
+            const semesterData = getActiveSemesterData();
+
+            document.getElementById('semesterBtn1').classList.toggle('active', activeSemester === '1');
+            document.getElementById('semesterBtn2').classList.toggle('active', activeSemester === '2');
+            renderClassTabs();
+
+            const mainContent = document.getElementById('main-content-area');
+            const instructionsContent = document.getElementById('content-instructions');
+            const instructionsTab = document.querySelector('[data-tab-id="instructions"]');
+
+            if (activeClassId && semesterData.classes[activeClassId]) {
+                mainContent.classList.remove('hidden');
+                instructionsContent.classList.add('hidden');
+                instructionsTab.classList.remove('active');
+                renderCategoryWeights();
+                renderGradebook();
+            } else {
+                mainContent.classList.add('hidden');
+                instructionsContent.classList.remove('hidden');
+                instructionsTab.classList.add('active');
+            }
         }
 
-        function attachAllEventListeners() {
-            // This function attaches all necessary event listeners to the dynamically created gradebook elements.
-            document.getElementById('saveChangesBtn').addEventListener('click', () => saveDataForUser(currentUserId));
-            // ... and so on for all other interactive elements.
+        // --- DATA MUTATION & ACTIONS ---
+        function enableSaveChangesButton() {
+            const btn = document.getElementById('saveChangesBtn');
+            if(btn && btn.disabled) {
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-green-500', 'hover:bg-green-600');
+            }
         }
 
-        function addNewClass() { /* ... */ }
-        function addStudentRow() { /* ... */ }
-        // ... all other interactive functions
+        function disableSaveChangesButton(statusMessage = '') {
+            const btn = document.getElementById('saveChangesBtn');
+            const statusEl = document.getElementById('saveStatus');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.remove('bg-green-500', 'hover:bg-green-600');
+            }
+            if (statusEl) {
+                statusEl.textContent = statusMessage;
+                if (statusMessage) setTimeout(() => statusEl.textContent = '', 3000);
+            }
+        }
 
-        function switchTab(tabId) {
-             if(uiState.hasUnsavedChanges && appState.activeClassId !== tabId) {
-                showConfirmModal('Unsaved Changes', 'You have unsaved changes. Do you want to save them before switching?', () => {
-                    saveDataForUser(currentUserId);
-                    performTabSwitch(tabId);
+        async function saveChanges() {
+            if(!supabaseClient) return;
+            const saveStatusEl = document.getElementById('saveStatus');
+            saveStatusEl.textContent = 'Saving...';
+            
+            const classData = getActiveClassData();
+            const classNameEl = document.getElementById('className');
+            if (classData && classNameEl) {
+                classData.name = classNameEl.textContent;
+            }
+
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ gradebook_data: appState.gradebook_data })
+                .eq('id', currentUser.id);
+
+            if (error) {
+                console.error('Error saving data:', error);
+                disableSaveChangesButton('Error!');
+            } else {
+                disableSaveChangesButton('Saved!');
+            }
+        }
+        
+        function switchSemester(semester) {
+            appState.gradebook_data.activeSemester = semester;
+            const semesterData = getActiveSemesterData();
+            const classIds = Object.keys(semesterData.classes || {});
+            appState.gradebook_data.activeClassId = classIds.length > 0 ? classIds.sort((a,b) => semesterData.classes[a].name.localeCompare(semesterData.classes[b].name))[0] : null;
+            updateUIFromState();
+        }
+
+        function switchActiveClass(classId) {
+            appState.gradebook_data.activeClassId = classId;
+            updateUIFromState();
+        }
+
+        function addClass() {
+            showModal({
+                title: 'Add New Class',
+                content: `<label for="class-name-input" class="block text-sm font-medium text-gray-700">Class Name</label>
+                          <input type="text" id="class-name-input" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="e.g., Grade 10 Math">`,
+                confirmText: 'Add Class',
+                confirmClasses: 'bg-blue-600 hover:bg-blue-700',
+                onConfirm: () => {
+                    const newClassName = document.getElementById('class-name-input').value.trim();
+                    if (newClassName) {
+                        const newClassId = `class_${Date.now()}`;
+                        const activeSemester = appState.gradebook_data.activeSemester;
+                        
+                        const units = {};
+                        for (let i = 1; i <= 5; i++) {
+                            const unitId = `unit_${Date.now()}_${i}`;
+                            units[unitId] = { name: `Unit ${i}`, weight: 20, assignments: {} };
+                        }
+
+                        const newClassData = {
+                            id: newClassId, name: newClassName,
+                            midtermsRecorded: false,
+                            categoryWeights: { k: 25, t: 25, c: 25, a: 25 },
+                            units: units,
+                            students: {}
+                        };
+                        if (!appState.gradebook_data.semesters[activeSemester]) appState.gradebook_data.semesters[activeSemester] = { classes: {} };
+                        appState.gradebook_data.semesters[activeSemester].classes[newClassId] = newClassData;
+                        appState.gradebook_data.activeClassId = newClassId;
+                        updateUIFromState();
+                        enableSaveChangesButton();
+                    }
+                }
+            });
+            setTimeout(() => document.getElementById('class-name-input').focus(), 50);
+        }
+
+        function deleteClass() {
+            const classData = getActiveClassData();
+            if (!classData) return;
+            showModal({
+                title: 'Delete Class',
+                content: `<p>Are you sure you want to permanently delete the class "<strong>${classData.name}</strong>"?</p><p class="mt-2 text-sm text-gray-600">This action cannot be undone.</p>`,
+                onConfirm: () => {
+                    const activeSemester = appState.gradebook_data.activeSemester;
+                    const activeClassId = appState.gradebook_data.activeClassId;
+                    delete appState.gradebook_data.semesters[activeSemester].classes[activeClassId];
+                    const classIds = Object.keys(appState.gradebook_data.semesters[activeSemester].classes);
+                    appState.gradebook_data.activeClassId = classIds.length > 0 ? classIds[0] : null;
+                    saveChanges().then(updateUIFromState);
+                }
+            });
+        }
+        
+        function addStudent() {
+            showModal({
+                title: 'Add New Student',
+                content: `<label for="student-name-input" class="block text-sm font-medium text-gray-700">Student Name</label>
+                          <input type="text" id="student-name-input" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="e.g., John Doe">`,
+                confirmText: 'Add Student',
+                confirmClasses: 'bg-blue-600 hover:bg-blue-700',
+                onConfirm: () => {
+                    const studentName = document.getElementById('student-name-input').value.trim();
+                    if (studentName) {
+                        const classData = getActiveClassData();
+                        if (classData) {
+                            const studentId = `student_${Date.now()}`;
+                            if (!classData.students) classData.students = {};
+                            classData.students[studentId] = { id: studentId, name: studentName, grades: {}, iep: false, midtermGrade: null };
+                            enableSaveChangesButton();
+                            renderGradebook();
+                        }
+                    }
+                }
+            });
+            setTimeout(() => document.getElementById('student-name-input').focus(), 50);
+        }
+
+        function deleteStudent(studentId) {
+            const classData = getActiveClassData();
+            const student = classData?.students?.[studentId];
+            if (!student) return;
+            showModal({
+                title: 'Delete Student',
+                content: `<p>Are you sure you want to delete the student "<strong>${student.name}</strong>" and all their grades?</p>`,
+                onConfirm: () => {
+                    delete classData.students[studentId];
+                    enableSaveChangesButton();
+                    renderGradebook();
+                }
+            });
+        }
+
+        function addAssignment() {
+            const classData = getActiveClassData();
+            if (!classData) return;
+
+            if (!classData.units || Object.keys(classData.units).length === 0) {
+                showModal({
+                    title: 'No Units Found',
+                    content: 'You need to create at least one unit (e.g., "Term Work") before adding an assignment.',
+                    confirmText: 'Create Units',
+                    confirmClasses: 'bg-orange-500 hover:bg-orange-600',
+                    onConfirm: editUnits
                 });
                 return;
             }
-           performTabSwitch(tabId);
-        }
-        function performTabSwitch(tabId) {
-            // ... Logic to show/hide content and update active tabs
+
+            const unitOptions = Object.entries(classData.units).map(([unitId, unit]) => `<option value="${unitId}">${unit.name} (${unit.weight}%)</option>`).join('');
+            showModal({
+                title: 'Add New Assignment',
+                content: `<div class="space-y-4">
+                    <div><label for="assignment-name-input" class="block text-sm font-medium text-gray-700">Assignment Name</label><input type="text" id="assignment-name-input" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm" placeholder="e.g., Chapter 1 Quiz"></div>
+                    <div><label for="assignment-unit-select" class="block text-sm font-medium text-gray-700">Unit/Category</label><select id="assignment-unit-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none rounded-md">${unitOptions}</select></div>
+                    <fieldset class="border p-4 rounded-md"><legend class="text-sm font-medium text-gray-700 px-2">Category Totals</legend>
+                        <div class="grid grid-cols-2 gap-4 mt-2">
+                           <div><label class="block text-xs font-medium text-gray-500">Knowledge</label><input type="number" id="asg-k-total" class="mt-1 block w-full p-2 border rounded-md" value="0" min="0"></div>
+                           <div><label class="block text-xs font-medium text-gray-500">Thinking</label><input type="number" id="asg-t-total" class="mt-1 block w-full p-2 border rounded-md" value="0" min="0"></div>
+                           <div><label class="block text-xs font-medium text-gray-500">Communication</label><input type="number" id="asg-c-total" class="mt-1 block w-full p-2 border rounded-md" value="0" min="0"></div>
+                           <div><label class="block text-xs font-medium text-gray-500">Application</label><input type="number" id="asg-a-total" class="mt-1 block w-full p-2 border rounded-md" value="0" min="0"></div>
+                        </div>
+                    </fieldset>
+                </div>`,
+                confirmText: 'Add Assignment',
+                confirmClasses: 'bg-blue-600 hover:bg-blue-700',
+                onConfirm: () => {
+                    const name = document.getElementById('assignment-name-input').value.trim();
+                    const unitId = document.getElementById('assignment-unit-select').value;
+                    const categoryTotals = {
+                        k: parseFloat(document.getElementById('asg-k-total').value) || 0,
+                        t: parseFloat(document.getElementById('asg-t-total').value) || 0,
+                        c: parseFloat(document.getElementById('asg-c-total').value) || 0,
+                        a: parseFloat(document.getElementById('asg-a-total').value) || 0,
+                    };
+                    
+                    if (name && unitId) {
+                        const classData = getActiveClassData();
+                        if (classData?.units[unitId]) {
+                            const assignmentId = `asg_${Date.now()}`;
+                            if (!classData.units[unitId].assignments) classData.units[unitId].assignments = {};
+                            classData.units[unitId].assignments[assignmentId] = { id: assignmentId, name, categoryTotals };
+                            Object.values(classData.students || {}).forEach(student => { 
+                                if(!student.grades) student.grades = {}; 
+                                student.grades[assignmentId] = { k: null, t: null, c: null, a: null }; 
+                            });
+                            enableSaveChangesButton();
+                            renderGradebook();
+                        }
+                    }
+                }
+            });
+            setTimeout(() => document.getElementById('assignment-name-input').focus(), 50);
         }
 
+        function editUnits() {
+            const classData = getActiveClassData();
+            if (!classData) return;
 
-        // --- INITIALIZATION ---
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUserId = user.uid;
-                userEmailDisplay.textContent = `Welcome, ${user.email}`;
-                authContainer.classList.add('hidden');
-                appContainer.classList.remove('hidden');
-                setupRealtimeListener(currentUserId);
-            } else {
-                currentUserId = null;
-                appState = {};
-                authContainer.classList.remove('hidden');
-                appContainer.classList.add('hidden');
+            let unitsHtml = `<div id="units-editor-list" class="space-y-3 mb-4">`;
+            const units = classData.units || {};
+            for (const unitId in units) {
+                const unit = units[unitId];
+                unitsHtml += `
+                    <div class="flex items-center gap-2 p-2 bg-gray-50 rounded" data-unit-id="${unitId}">
+                        <input type="text" value="${unit.name}" class="unit-name-input flex-grow p-2 border rounded" placeholder="Unit Name">
+                        <input type="number" value="${unit.weight}" class="unit-weight-input w-24 p-2 border rounded" placeholder="Weight %" min="0" max="100">
+                        <button class="remove-unit-btn bg-red-200 text-red-700 hover:bg-red-300 font-bold p-2 rounded">&times;</button>
+                    </div>
+                `;
+            }
+            unitsHtml += `</div>`;
+            unitsHtml += `<div class="flex justify-between items-center"><button id="add-new-unit-btn" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-lg">+ Add Unit</button><div class="text-right"><p id="unit-weight-total" class="font-bold text-lg">Total: 0%</p><p id="unit-weight-error" class="text-red-500 text-sm h-4"></p></div></div>`;
+            
+            showModal({
+                title: 'Edit Units & Weights',
+                content: unitsHtml,
+                confirmText: 'Save Units',
+                confirmClasses: 'bg-blue-600 hover:bg-blue-700',
+                onAction: (closeModal) => {
+                    const editorList = document.getElementById('units-editor-list');
+                    const unitRows = editorList.querySelectorAll('[data-unit-id]');
+                    const newUnits = {};
+                    let totalWeight = 0;
+                    
+                    unitRows.forEach(row => {
+                        const id = row.dataset.unitId;
+                        const name = row.querySelector('.unit-name-input').value.trim();
+                        const weight = parseFloat(row.querySelector('.unit-weight-input').value);
+                        if (name && !isNaN(weight) && weight >= 0) {
+                            totalWeight += weight;
+                            newUnits[id] = { ...(classData.units?.[id] || { assignments: {} }), name, weight };
+                        }
+                    });
+
+                    if (Math.round(totalWeight) !== 100) {
+                       const errorEl = document.getElementById('unit-weight-error');
+                       if (errorEl) errorEl.textContent = 'Total weight must equal 100%';
+                       return; 
+                    }
+                    
+                    classData.units = newUnits;
+                    enableSaveChangesButton();
+                    renderGradebook();
+                    closeModal();
+                }
+            });
+
+            const editorList = document.getElementById('units-editor-list');
+
+            const updateTotal = () => {
+                let total = 0;
+                document.querySelectorAll('#units-editor-list .unit-weight-input').forEach(input => {
+                    const val = parseFloat(input.value);
+                    if (!isNaN(val)) total += val;
+                });
+                const totalEl = document.getElementById('unit-weight-total');
+                const errorEl = document.getElementById('unit-weight-error');
+                if(totalEl) totalEl.textContent = `Total: ${total}%`;
+                if(errorEl) {
+                    totalEl.classList.toggle('text-red-500', Math.round(total) !== 100);
+                    errorEl.textContent = Math.round(total) !== 100 ? 'Total must be 100%' : '';
+                }
+            };
+
+            const distributeWeights = () => {
+                const weightInputs = editorList.querySelectorAll('.unit-weight-input');
+                const count = weightInputs.length;
+                if (count === 0) {
+                    updateTotal();
+                    return;
+                }
+
+                const baseWeight = Math.floor(100 / count);
+                let remainder = 100 - (baseWeight * count);
+
+                weightInputs.forEach((input, index) => {
+                    let newWeight = baseWeight;
+                    if (index < remainder) {
+                        newWeight++;
+                    }
+                    input.value = newWeight;
+                });
+                updateTotal();
+            };
+            
+            document.getElementById('add-new-unit-btn').addEventListener('click', () => {
+                const newUnitId = `unit_${Date.now()}`;
+                const newRow = document.createElement('div');
+                newRow.className = "flex items-center gap-2 p-2 bg-gray-50 rounded";
+                newRow.dataset.unitId = newUnitId;
+                newRow.innerHTML = `
+                    <input type="text" class="unit-name-input flex-grow p-2 border rounded" placeholder="Unit Name">
+                    <input type="number" value="0" class="unit-weight-input w-24 p-2 border rounded" placeholder="Weight %" min="0" max="100">
+                    <button class="remove-unit-btn bg-red-200 text-red-700 hover:bg-red-300 font-bold p-2 rounded">&times;</button>
+                `;
+                editorList.appendChild(newRow);
+                newRow.querySelector('.unit-name-input').focus();
+                distributeWeights();
+            });
+
+            editorList.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-unit-btn')) {
+                    e.target.closest('[data-unit-id]').remove();
+                    distributeWeights();
+                }
+            });
+
+            editorList.addEventListener('input', updateTotal);
+            updateTotal();
+        }
+
+function exportToPDF() {
+            const classData = getActiveClassData();
+            if (!classData) {
+                alert('Please select a class to export');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+            
+            // Document title and metadata
+            const semester = appState.gradebook_data.activeSemester;
+            const currentDate = new Date().toLocaleDateString();
+            
+            doc.setFontSize(20);
+            doc.text(`${classData.name} - Semester ${semester}`, 14, 15);
+            doc.setFontSize(10);
+            doc.text(`Generated: ${currentDate}`, 14, 22);
+            doc.text(`Teacher: ${appState.full_name || currentUser.email}`, 14, 27);
+            
+            // Category weights
+            doc.setFontSize(12);
+            doc.text('Category Weights:', 14, 35);
+            doc.setFontSize(10);
+            const weights = classData.categoryWeights;
+            doc.text(`Knowledge: ${weights.k}%  |  Thinking: ${weights.t}%  |  Communication: ${weights.c}%  |  Application: ${weights.a}%`, 14, 41);
+            
+            let yPosition = 50;
+            
+            // Sort units
+            const sortedUnits = Object.entries(classData.units || {})
+                .filter(([, unit]) => !unit.isFinal)
+                .sort(([, a], [, b]) => (a.order || 0) - (b.order || 0));
+            
+            // Sort students
+            const sortedStudents = Object.values(classData.students || {})
+                .sort((a, b) => {
+                    const lastNameCompare = (a.lastName || '').localeCompare(b.lastName || '');
+                    if (lastNameCompare !== 0) return lastNameCompare;
+                    return (a.firstName || '').localeCompare(b.firstName || '');
+                });
+            
+            // Process each unit
+            sortedUnits.forEach(([unitId, unit]) => {
+                const sortedAssignments = Object.values(unit.assignments || {})
+                    .sort((a, b) => (a.order || 0) - (b.order || 0));
+                
+                if (sortedAssignments.length === 0) return; // Skip units with no assignments
+                
+                // Check if we need a new page
+                if (yPosition > 160) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                // Unit header
+                doc.setFontSize(14);
+                doc.setFont(undefined, 'bold');
+                doc.text(`${unit.title}${unit.subtitle ? ' - ' + unit.subtitle : ''} (Weight: ${unit.weight}%)`, 14, yPosition);
+                yPosition += 8;
+                
+                // Prepare table data for this unit
+                const tableHeaders = ['Student Name', 'IEP'];
+                const assignmentHeaders = [];
+                
+                sortedAssignments.forEach(asg => {
+                    assignmentHeaders.push({
+                        name: asg.name,
+                        weight: asg.weight,
+                        totals: asg.categoryTotals
+                    });
+                    tableHeaders.push(`${asg.name} (K)`, `${asg.name} (T)`, `${asg.name} (C)`, `${asg.name} (A)`);
+                });
+                
+                tableHeaders.push('Unit Avg');
+                
+                const tableData = [];
+                
+                sortedStudents.forEach(student => {
+                    const row = [
+                        `${student.lastName}, ${student.firstName}`,
+                        student.iep ? '✓' : ''
+                    ];
+                    
+                    let unitTotal = 0;
+                    let unitMaxTotal = 0;
+                    
+                    sortedAssignments.forEach(asg => {
+                        ['k', 't', 'c', 'a'].forEach(cat => {
+                            const grade = student.grades?.[asg.id]?.[cat];
+                            const maxGrade = asg.categoryTotals?.[cat] || 0;
+                            
+                            if (maxGrade > 0) {
+                                row.push(grade !== null && grade !== undefined ? grade.toString() : '--');
+                                if (grade !== null && grade !== undefined) {
+                                    unitTotal += grade * (asg.weight || 1);
+                                }
+                                unitMaxTotal += maxGrade * (asg.weight || 1);
+                            } else {
+                                row.push('N/A');
+                            }
+                        });
+                    });
+                    
+                    // Calculate unit average
+                    const unitAvg = unitMaxTotal > 0 ? (unitTotal / unitMaxTotal * 100) : null;
+                    row.push(unitAvg !== null ? `${unitAvg.toFixed(1)}%` : '--');
+                    
+                    tableData.push(row);
+                });
+                
+                // Add class average row
+                const avgRow = ['Class Average', ''];
+                sortedAssignments.forEach(asg => {
+                    ['k', 't', 'c', 'a'].forEach(cat => {
+                        let sum = 0;
+                        let count = 0;
+                        sortedStudents.forEach(student => {
+                            const grade = student.grades?.[asg.id]?.[cat];
+                            if (grade !== null && grade !== undefined) {
+                                sum += grade;
+                                count++;
+                            }
+                        });
+                        const maxGrade = asg.categoryTotals?.[cat] || 0;
+                        if (maxGrade > 0 && count > 0) {
+                            avgRow.push(`${(sum / count).toFixed(1)}`);
+                        } else {
+                            avgRow.push('--');
+                        }
+                    });
+                });
+                
+                // Calculate overall unit average
+                let overallUnitSum = 0;
+                let overallUnitCount = 0;
+                sortedStudents.forEach(student => {
+                    let unitTotal = 0;
+                    let unitMaxTotal = 0;
+                    sortedAssignments.forEach(asg => {
+                        ['k', 't', 'c', 'a'].forEach(cat => {
+                            const grade = student.grades?.[asg.id]?.[cat];
+                            const maxGrade = asg.categoryTotals?.[cat] || 0;
+                            if (maxGrade > 0 && grade !== null && grade !== undefined) {
+                                unitTotal += grade * (asg.weight || 1);
+                                unitMaxTotal += maxGrade * (asg.weight || 1);
+                            }
+                        });
+                    });
+                    if (unitMaxTotal > 0) {
+                        overallUnitSum += (unitTotal / unitMaxTotal * 100);
+                        overallUnitCount++;
+                    }
+                });
+                avgRow.push(overallUnitCount > 0 ? `${(overallUnitSum / overallUnitCount).toFixed(1)}%` : '--');
+                tableData.push(avgRow);
+                
+                // Generate table
+                doc.autoTable({
+                    head: [tableHeaders],
+                    body: tableData,
+                    startY: yPosition,
+                    styles: {
+                        fontSize: 8,
+                        cellPadding: 1.5
+                    },
+                    headStyles: {
+                        fillColor: [59, 130, 246],
+                        textColor: 255,
+                        fontStyle: 'bold',
+                        halign: 'center'
+                    },
+                    columnStyles: {
+                        0: { halign: 'left', cellWidth: 40 },
+                        1: { halign: 'center', cellWidth: 10 }
+                    },
+                    alternateRowStyles: {
+                        fillColor: [245, 245, 245]
+                    },
+                    margin: { left: 14, right: 14 }
+                });
+                
+                yPosition = doc.lastAutoTable.finalY + 10;
+            });
+            
+            // Add summary page with overall grades
+            doc.addPage();
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('Overall Student Grades', 14, 20);
+            
+            const summaryHeaders = ['Student Name', 'Term Mark', 'Midterm', 'Overall Grade', 'K%', 'T%', 'C%', 'A%'];
+            if (classData.hasFinal) {
+                summaryHeaders.splice(3, 0, 'Final Exam');
+            }
+            
+            const summaryData = [];
+            sortedStudents.forEach(student => {
+                const { termMark, overallGrade, categories } = calculateStudentAverages(student, classData);
+                const row = [
+                    `${student.lastName}, ${student.firstName}`,
+                    termMark !== null ? `${termMark.toFixed(1)}%` : '--',
+                    student.midtermGrade !== null ? `${student.midtermGrade.toFixed(1)}%` : '--'
+                ];
+                
+                if (classData.hasFinal) {
+                    row.push(student.finalExamGrade !== null ? `${student.finalExamGrade.toFixed(1)}%` : '--');
+                }
+                
+                row.push(
+                    overallGrade !== null ? `${overallGrade.toFixed(1)}%` : '--',
+                    categories.k !== null ? `${categories.k.toFixed(1)}%` : '--',
+                    categories.t !== null ? `${categories.t.toFixed(1)}%` : '--',
+                    categories.c !== null ? `${categories.c.toFixed(1)}%` : '--',
+                    categories.a !== null ? `${categories.a.toFixed(1)}%` : '--'
+                );
+                
+                summaryData.push(row);
+            });
+            
+            // Add class averages
+            let termMarkSum = 0, termMarkCount = 0;
+            let overallGradeSum = 0, overallGradeCount = 0;
+            let midtermSum = 0, midtermCount = 0;
+            let catSums = { k: 0, t: 0, c: 0, a: 0 };
+            let catCounts = { k: 0, t: 0, c: 0, a: 0 };
+            
+            sortedStudents.forEach(student => {
+                const { termMark, overallGrade, categories } = calculateStudentAverages(student, classData);
+                if (termMark !== null) { termMarkSum += termMark; termMarkCount++; }
+                if (overallGrade !== null) { overallGradeSum += overallGrade; overallGradeCount++; }
+                if (student.midtermGrade !== null) { midtermSum += student.midtermGrade; midtermCount++; }
+                
+                ['k', 't', 'c', 'a'].forEach(cat => {
+                    if (categories[cat] !== null) {
+                        catSums[cat] += categories[cat];
+                        catCounts[cat]++;
+                    }
+                });
+            });
+            
+            const avgRow = [
+                'Class Average',
+                termMarkCount > 0 ? `${(termMarkSum / termMarkCount).toFixed(1)}%` : '--',
+                midtermCount > 0 ? `${(midtermSum / midtermCount).toFixed(1)}%` : '--'
+            ];
+            
+            if (classData.hasFinal) {
+                let finalSum = 0, finalCount = 0;
+                sortedStudents.forEach(student => {
+                    if (student.finalExamGrade !== null) {
+                        finalSum += student.finalExamGrade;
+                        finalCount++;
+                    }
+                });
+                avgRow.push(finalCount > 0 ? `${(finalSum / finalCount).toFixed(1)}%` : '--');
+            }
+            
+            avgRow.push(
+                overallGradeCount > 0 ? `${(overallGradeSum / overallGradeCount).toFixed(1)}%` : '--',
+                catCounts.k > 0 ? `${(catSums.k / catCounts.k).toFixed(1)}%` : '--',
+                catCounts.t > 0 ? `${(catSums.t / catCounts.t).toFixed(1)}%` : '--',
+                catCounts.c > 0 ? `${(catSums.c / catCounts.c).toFixed(1)}%` : '--',
+                catCounts.a > 0 ? `${(catSums.a / catCounts.a).toFixed(1)}%` : '--'
+            );
+            
+            summaryData.push(avgRow);
+            
+            doc.autoTable({
+                head: [summaryHeaders],
+                body: summaryData,
+                startY: 30,
+                styles: {
+                    fontSize: 9,
+                    cellPadding: 2
+                },
+                headStyles: {
+                    fillColor: [59, 130, 246],
+                    textColor: 255,
+                    fontStyle: 'bold',
+                    halign: 'center'
+                },
+                columnStyles: {
+                    0: { halign: 'left', cellWidth: 50 }
+                },
+                alternateRowStyles: {
+                    fillColor: [245, 245, 245]
+                },
+                margin: { left: 14, right: 14 }
+            });
+            
+            // Save the PDF
+            const fileName = `${classData.name.replace(/[^a-z0-9]/gi, '_')}_Semester${semester}_Gradebook.pdf`;
+            doc.save(fileName);
+        }
+
+        function recordMidterms() {
+            const classData = getActiveClassData();
+            if (!classData || classData.midtermsRecorded) return;
+
+            showModal({
+                title: 'Record Midterm Marks',
+                content: `<p>Are you sure you want to record the current "Overall" grade as the official midterm mark for all students?</p>
+                          <p class="mt-2 text-sm text-yellow-600 font-semibold">This action can only be performed once per class.</p>`,
+                confirmText: 'Yes, Record Midterms',
+                confirmClasses: 'bg-purple-600 hover:bg-purple-700',
+                onConfirm: () => {
+                    const students = Object.values(classData.students || {});
+                    if (students.length === 0) return;
+
+                    students.forEach(student => {
+                        const studentAvgs = calculateStudentAverages(student, classData);
+                        student.midtermGrade = studentAvgs.overall;
+                    });
+
+                    classData.midtermsRecorded = true;
+                    saveChanges().then(() => {
+                        renderGradebook();
+                    });
+                }
+            });
+        }
+
+        // --- EVENT LISTENERS & INITIALIZATION ---
+        function setupGradebookEventListeners() {
+            if(!supabaseClient) return;
+            contentWrapper.addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.id === 'semesterBtn1') switchSemester('1');
+                else if (target.id === 'semesterBtn2') switchSemester('2');
+                else if (target.id === 'addClassBtn') addClass();
+                else if (target.dataset.tabId === 'instructions') { appState.gradebook_data.activeClassId = null; updateUIFromState(); }
+                else if (target.closest('.tab-button')) switchActiveClass(target.closest('.tab-button').dataset.tabId);
+                else if (target.id === 'saveChangesBtn') saveChanges();
+                else if (target.id === 'deleteClassBtn') deleteClass();
+                else if (target.id === 'addStudentBtn') addStudent();
+                else if (target.id === 'addAssignmentBtn') addAssignment();
+                else if (target.id === 'editUnitsBtn') editUnits();
+                else if (target.id === 'recordMidtermsBtn') recordMidterms();
+else if (target.id === 'exportMenuBtn') {
+                    e.preventDefault();
+                    const dropdown = document.getElementById('exportMenuDropdown');
+                    dropdown.classList.toggle('hidden');
+                }
+                else if (target.id === 'exportPdfBtn') {
+                    e.preventDefault();
+                    exportToPDF();
+                    document.getElementById('exportMenuDropdown').classList.add('hidden');
+                }
+                else if (target.id === 'exportCsvBtn') {
+                    e.preventDefault();
+                    // CSV export functionality can be added here later
+                    alert('CSV export coming soon!');
+                    document.getElementById('exportMenuDropdown').classList.add('hidden');
+                }
+            });
+
+	// Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#exportMenuBtn') && !e.target.closest('#exportMenuDropdown')) {
+                    const dropdown = document.getElementById('exportMenuDropdown');
+                    if (dropdown) dropdown.classList.add('hidden');
+                }
+            });
+
+            contentWrapper.addEventListener('input', (e) => {
+                if (e.target.id === 'className') {
+                    const classData = getActiveClassData();
+                    if (classData && classData.name !== e.target.textContent) enableSaveChangesButton();
+                }
+            });
+            
+            const tableWrapper = document.getElementById('table-wrapper');
+            if (tableWrapper) {
+                tableWrapper.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('delete-btn')) deleteStudent(e.target.dataset.studentId);
+                });
+                tableWrapper.addEventListener('input', (e) => {
+                    const target = e.target;
+                    const classData = getActiveClassData();
+                    if (!classData) return;
+                    
+                    const studentId = target.dataset.studentId;
+                    const student = classData.students?.[studentId];
+                    if (!student) return;
+
+                    if (target.classList.contains('grade-input')) {
+                        const assignmentId = target.dataset.assignmentId;
+                        const cat = target.dataset.cat;
+                        const score = target.value === '' ? null : parseFloat(target.value);
+                        
+                        if (student.grades?.[assignmentId]) {
+                            student.grades[assignmentId][cat] = isNaN(score) ? null : score;
+                            enableSaveChangesButton();
+                            recalculateAndRenderAverages();
+                        }
+                    } else if (target.classList.contains('student-name-input')) {
+                         student.name = target.value;
+                         enableSaveChangesButton();
+                    } else if (target.classList.contains('iep-checkbox')) {
+                        student.iep = target.checked;
+                        enableSaveChangesButton();
+                    } else if (target.classList.contains('midterm-grade-input')) {
+                        const score = target.value === '' ? null : parseFloat(target.value);
+                        student.midtermGrade = isNaN(score) ? null : score;
+                        enableSaveChangesButton();
+                    }
+                });
+            }
+        }
+        
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            if(!supabaseClient) return;
+            const email = document.getElementById('email-address').value;
+            const password = document.getElementById('password').value;
+            const authError = document.getElementById('auth-error');
+            authError.classList.add('hidden');
+            loadingOverlay.classList.remove('hidden');
+           
+            try {
+                let response;
+                let isLoginMode = authSubmitBtn.textContent === 'Sign in';
+                if (isLoginMode) {
+                    response = await supabaseClient.auth.signInWithPassword({ email, password });
+                } else {
+                    response = await supabaseClient.auth.signUp({ email, password });
+                }
+                if (response.error) throw response.error;
+            } catch (error) {
+                authError.textContent = error.message;
+                authError.classList.remove('hidden');
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+       
+        async function loadDataForUser(userId, isInitial = true) {
+            if(!supabaseClient) return;
+            loadingOverlay.classList.remove('hidden');
+            try {
+                const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', userId).single();
+                if (data) {
+                    handleDataLoad(data, isInitial);
+                } else if (error && error.code === 'PGRST116') {
+                    const { data: newData, error: newError } = await supabaseClient.from('profiles').insert({
+                        id: userId,
+                        gradebook_data: { semesters: { '1': { classes: {} }, '2': { classes: {} } }, presets: {}, activeSemester: '1', activeClassId: null },
+                        subscription_status: 'inactive',
+                        full_name: '', birthday: null, school_name: '', school_board: ''
+                    }).select().single();
+                    if(newError) throw newError;
+                    else handleDataLoad(newData, isInitial);
+                } else {
+                    if (error) throw error;
+                }
+            } catch(error) {
+                console.error('Error fetching profile:', error);
+                contentWrapper.innerHTML = `<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mt-8 mx-auto max-w-4xl rounded-md" role="alert">
+                    <p class="font-bold">Error Loading Data</p>
+                    <p class="mt-2">The application could not load your gradebook. The most common cause for this is a missing Row Level Security (RLS) policy in your Supabase project.</p>
+                    <p class="mt-2"><strong>How to fix:</strong> Go to your Supabase Dashboard, navigate to Authentication -> Policies, select the 'profiles' table, and create a new policy that allows logged-in users to SELECT their own data using the expression: <code>auth.uid() = id</code>.</p>
+                </div>`;
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+       
+        function handleDataLoad(data, isInitial = true) {
+            if (data?.gradebook_data?.semesters) {
+                for (const semKey in data.gradebook_data.semesters) {
+                    const semester = data.gradebook_data.semesters[semKey];
+                    if (semester?.classes) {
+                        for (const classKey in semester.classes) {
+                            const classData = semester.classes[classKey];
+                            if (!classData.categoryWeights) {
+                                classData.categoryWeights = { k: 25, t: 25, c: 25, a: 25 };
+                            }
+                        }
+                    }
+                }
+            }
+
+            appState = data;
+
+            if (appState.full_name && appState.full_name.trim() !== '') {
+                userEmailDisplay.textContent = `Welcome, ${appState.full_name}`;
+            } else if (currentUser) {
+                userEmailDisplay.textContent = `Welcome, ${currentUser.email}`;
+            }
+
+            if (isInitial) {
+                if (appState.subscription_status === 'active') {
+                    renderFullGradebookUI();
+                } else {
+                    // Forcing active status for now for dev purposes
+                    appState.subscription_status = 'active';
+                    renderFullGradebookUI();
+                }
             }
             loadingOverlay.classList.add('hidden');
-        });
+        }
 
-        authToggleLink.addEventListener('click', toggleAuthMode);
-        authSubmitBtn.addEventListener('click', handleAuthSubmit);
-        signOutBtn.addEventListener('click', handleSignOut);
+        function renderFullGradebookUI() {
+            contentWrapper.innerHTML = `
+                <div class="mb-4">
+                    <div class="border-b border-gray-200"><nav class="flex items-center space-x-8"><button id="semesterBtn1" class="semester-button py-3 px-1 border-b-2 border-transparent font-medium text-lg text-gray-500 hover:text-gray-700">Semester 1</button><button id="semesterBtn2" class="semester-button py-3 px-1 border-b-2 border-transparent font-medium text-lg text-gray-500 hover:text-gray-700">Semester 2</button></nav></div>
+                    <div class="border-b border-gray-200 mt-2"><nav class="flex items-center space-x-4"><button data-tab-id="instructions" class="tab-button shrink-0 py-4 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700">Instructions</button><div id="class-tabs-container" class="flex items-center space-x-4 overflow-x-auto"></div><button id="addClassBtn" class="ml-2 shrink-0 bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold py-2 px-3 rounded-lg text-sm">+ Add Class</button></nav></div>
+                </div>
+                <div id="content-instructions" class="tab-content hidden fade-in bg-white p-6 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-semibold mb-4 text-gray-700">How to Use This Gradebook</h2>
+                    <p>This gradebook organizes classes by semester. Use the tabs to switch between them.</p>
+                    <div class="mt-8 pt-6 border-t"><h3 class="text-xl font-semibold mb-3 text-gray-700">Backup and Restore</h3><p class="mb-4 text-sm text-gray-600">Save a local backup of your data.</p><div class="flex flex-wrap gap-4"><button id="backupDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Backup to File</button><button id="restoreDataBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Restore from File</button><input type="file" id="restoreFileInput" class="hidden" accept=".json"></div></div>
+                    <div class="mt-8 pt-6 border-t"><h3 class="text-xl font-semibold mb-3 text-gray-700">Manage Class Presets</h3><div id="preset-list-container" class="space-y-2"></div></div>
+                </div>
+                <div id="main-content-area" class="tab-content hidden fade-in">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
+                        <div class="flex items-center gap-4"><div contenteditable="true" id="className" class="text-2xl font-bold text-gray-700 p-2 rounded-md transition-shadow"></div><button id="saveChangesBtn" class="bg-gray-400 text-white font-bold py-2 px-4 rounded-lg shadow-sm cursor-not-allowed" disabled>Save Changes</button><span id="saveStatus" class="text-sm text-green-600"></span></div>
+                        <div class="mt-2 sm:mt-0 flex flex-wrap items-center justify-end gap-2">
+                            <button id="editUnitsBtn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg">Edit Units</button>
+                            <button id="recordMidtermsBtn" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg">Record Midterms</button>
+                            <button id="addStudentBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">+ Add Student</button>
+                            <button id="addAssignmentBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">+ Add Assignment</button>
+                            <button id="savePresetBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg">Save as Preset</button>
+                            <button id="deleteClassBtn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">Delete Class</button>
+                            <div class="relative"><button id="exportMenuBtn" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">Export <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="exportMenuDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-20 border border-gray-200"><a href="#" id="exportCsvBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Export as CSV</a><a href="#" id="exportPdfBtn" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Export as PDF</a></div></div>                        </div>
+                    </div>
+                    <div id="category-weights-container" class="bg-white p-4 rounded-lg shadow-md mb-4"></div>
+                    <div id="table-wrapper" class="bg-white rounded-lg shadow-md"><table id="gradebookTable" class="w-full text-sm text-left text-gray-500"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+                </div>
+            `;
+            setupGradebookEventListeners();
+            updateUIFromState();
+        }
 
+        function renderSubscriptionPage() { /* ...omitted for brevity... */ }
+       
+        function renderAccountPage() {
+            if(!supabaseClient) return;
+            contentWrapper.innerHTML = `
+                <div class="bg-white rounded-lg shadow-md p-8 max-w-2xl mx-auto fade-in">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">My Account</h2>
+                    <div class="space-y-4">
+                        <div><label for="profile-full-name" class="block text-sm font-medium text-gray-700">Full Name</label><input type="text" id="profile-full-name" value="${appState.full_name || ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                        <div><label for="profile-birthday" class="block text-sm font-medium text-gray-700">Birthday</label><input type="date" id="profile-birthday" value="${appState.birthday || ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                        <div><label for="profile-school-name" class="block text-sm font-medium text-gray-700">School Name</label><input type="text" id="profile-school-name" value="${appState.school_name || ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                        <div><label for="profile-school-board" class="block text-sm font-medium text-gray-700">School Board</label><input type="text" id="profile-school-board" value="${appState.school_board || ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></div>
+                        <div><p class="text-sm font-medium text-gray-500">Subscription Status</p><p class="text-lg font-bold ${appState.subscription_status === 'active' ? 'text-green-600' : 'text-yellow-600'}">${appState.subscription_status}</p></div>
+                    </div>
+                    <div class="mt-8 pt-6 border-t flex items-center justify-between"><button id="back-to-app-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">Back to Gradebook</button><div><span id="profile-save-status" class="text-sm mr-4"></span><button id="save-profile-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Save Profile</button></div></div>
+                </div>`;
+            document.getElementById('back-to-app-btn').addEventListener('click', () => handleDataLoad(appState));
+            document.getElementById('save-profile-btn').addEventListener('click', async () => {
+                const updates = {
+                    full_name: document.getElementById('profile-full-name').value,
+                    birthday: document.getElementById('profile-birthday').value || null,
+                    school_name: document.getElementById('profile-school-name').value,
+                    school_board: document.getElementById('profile-school-board').value,
+                };
+                const { error } = await supabaseClient.from('profiles').update(updates).eq('id', currentUser.id);
+                const statusEl = document.getElementById('profile-save-status');
+                statusEl.textContent = error ? 'Save failed.' : 'Profile saved!';
+                statusEl.className = error ? 'text-sm mr-4 text-red-500' : 'text-sm mr-4 text-green-500';
+                if(!error) Object.assign(appState, updates);
+            });
+        }
+        
+        // --- Inactivity Timer ---
+        function resetInactivityTimer() {
+            clearTimeout(inactivityTimer);
+            // Set a 15-minute timer. If it completes, sign the user out.
+            inactivityTimer = setTimeout(() => {
+                if (currentUser) {
+                    console.log("Signing out due to 15 minutes of inactivity.");
+                    supabaseClient.auth.signOut();
+                    showModal({
+                        title: 'Session Expired',
+                        content: 'You have been signed out due to inactivity.',
+                        confirmText: 'OK',
+                        confirmClasses: 'bg-blue-600 hover:bg-blue-700'
+                    });
+                }
+            }, 15 * 60 * 1000); // 15 minutes
+        }
+
+        function setupInactivityListeners() {
+            const events = ['mousemove', 'keypress', 'click', 'scroll'];
+            events.forEach(event => window.addEventListener(event, resetInactivityTimer));
+            resetInactivityTimer(); // Start the timer when listeners are set up.
+        }
+
+        function clearInactivityListeners() {
+            clearTimeout(inactivityTimer);
+            const events = ['mousemove', 'keypress', 'click', 'scroll'];
+            events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+        }
+
+        if (supabaseClient) {
+            supabaseClient.auth.onAuthStateChange(async (event, session) => {
+                if (session?.user) {
+                    // A user is logged in.
+                    const isNewLogin = !currentUser || currentUser.id !== session.user.id;
+
+                    // Always ensure the main app UI is visible if a user is logged in.
+                    authContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+
+                    if (isNewLogin) {
+                        // This is a fresh login, so load data and set up the inactivity timer.
+                        currentUser = session.user;
+                        await loadDataForUser(currentUser.id, true);
+                        setupInactivityListeners(); // Start tracking inactivity.
+                    }
+                } else {
+                    // No user session found, so sign the user out.
+                    currentUser = null;
+                    appState = {}; // Clear all application data from memory.
+                    clearInactivityListeners(); // Stop tracking inactivity.
+
+                    // Show the login form and hide the main application.
+                    authContainer.classList.remove('hidden');
+                    appContainer.classList.add('hidden');
+                    loadingOverlay.classList.add('hidden');
+                }
+            });
+        }
+        
+        window.addEventListener('resize', adjustStickyHeaders);
+        
+        if (authToggleLink) {
+            authToggleLink.addEventListener('click', () => {
+                 const authTitle = document.getElementById('auth-title');
+                 let isLoginMode = authSubmitBtn.textContent === 'Sign in';
+                 isLoginMode = !isLoginMode;
+                 authTitle.textContent = isLoginMode ? 'Sign in to your account' : 'Create a new account';
+                 authSubmitBtn.textContent = isLoginMode ? 'Sign in' : 'Create account';
+                 authToggleLink.innerHTML = isLoginMode ? 'Or create a new account' : 'Already have an account? Sign in';
+            });
+        }
+
+        if (authSubmitBtn) authSubmitBtn.addEventListener('click', handleAuthSubmit);
+        if (signOutBtn) signOutBtn.addEventListener('click', () => supabaseClient.auth.signOut());
+        if (accountManagementBtn) accountManagementBtn.addEventListener('click', renderAccountPage);
     </script>
 </body>
 </html>
